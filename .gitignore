@@ -1,0 +1,21 @@
+# Helm: vendored/packaged dependency archives.
+# Keep Chart.lock committed; regenerate tarballs with `helm dependency build`.
+**/charts/*.tgz
+
+# Helm packaging output
+*.tgz
+
+# Local override / secret values — never commit real creds
+**/values-local.yaml
+**/*.secret.yaml
+**/secrets.yaml
+
+# Editor / OS noise
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+Chart.lock
+
+/tmp

@@ -1,0 +1,35 @@
+{{- if .Values.servingEngineSpec.enableEngine -}}
+{{- $modelSpec := .Values.servingEngineSpec.modelSpec }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: "{{ $.Release.Name }}-{{ $modelSpec.name }}-engine-service"
+  namespace: {{ $.Release.Namespace }}
+  labels:
+  {{- include "chart.engineStandardLabels" (dict "releaseName" $.Release.Name "modelName" $modelSpec.name "chartName" $.Chart.Name) | nindent 4 }}
+  {{- include "chart.engineLabels" $ | nindent 4 }}
+  {{- with $modelSpec.serviceAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4}}
+  {{- end }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: {{ include "chart.service-port-name" $ }}
+      port: {{ include "chart.service-port" $ }}
+      targetPort: {{ include "chart.container-port-name" $ }}
+      protocol: TCP
+    {{- if and $modelSpec.kvEventsConfig $modelSpec.kvEventsConfig.enabled }}
+    - name: kv-events
+      port: {{ $modelSpec.kvEventsConfig.port | default 5556 }}
+      targetPort: kv-events
+      protocol: TCP
+    {{- end }}
+  {{- include "chart.extraPorts" $ | nindent 4 }}
+  selector:
+    model: "{{ $modelSpec.name }}"
+    helm-release-name: "{{ $.Release.Name }}"
+  {{- include "chart.engineStandardLabels" (dict "releaseName" $.Release.Name "modelName" $modelSpec.name "chartName" $.Chart.Name) | nindent 4 }}
+  {{- include "chart.engineLabels" $ | nindent 4 }}
+{{- end }}
