@@ -1,0 +1,12 @@
+{{- if and .Values.s3Registry.enabled .Values.s3Registry.create }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "chart.s3RegistrySecretName" . }}
+  namespace: {{ .Release.Namespace }}
+type: Opaque
+stringData:
+  {{- range $key, $value := .Values.s3Registry.data }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}
+{{- end }}

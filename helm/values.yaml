@@ -1,0 +1,765 @@
+# -- Default values for llmstack helm chart
+# -- Declare variables to be passed into your templates.
+
+# -- Serving engine configuration
+servingEngineSpec:
+  # -- Whether to enable the serving engine
+  enableEngine: true
+  # @schema skipProperties:true
+  # -- Customized labels for the serving engine deployment
+  labels:
+    environment: "test"
+    release: "test"
+  # -- Extra service ports for models
+  extraPorts: []
+
+  # -- API key for securing the vLLM models. Can be either a string that will be stored in a generated secret or an object referencing an existing secret.
+  vllmApiKey: # @schema type:[string, object]
+    # -- Name of the existing Kubernetes secret that contains the vLLM API key
+    secretName: ""
+    # -- Key within the secret that contains the vLLM API key
+    secretKey: ""
+
+  # -- Specification for the single model served by this release (one model per
+  # Helm release). Provide the real values in your per-release values file
+  # (see manifests/values/values-main.yaml). Defaults here are intentionally
+  # minimal/inert so they don't leak opinionated settings into your model when
+  # Helm deep-merges this map. The full set of supported fields:
+  #   name, enabled, repository, tag, modelURL, servedModelName, modelRevision, replicaCount,
+  #   imagePullSecret, runtimeClassName, priorityClassName, serviceAccountName,
+  #   annotations, podAnnotations, labels, podLabels, serviceAnnotations,
+  #   requestCPU, requestMemory, requestGPU, requestGPUType,
+  #   requestGPUMem(Percentage)/Cores (HAMi), limitCPU, limitMemory,
+  #   limitGPUMem(Percentage)/Cores (HAMi), resources, pvcStorage, shmSize,
+  #   extraVolumes, extraVolumeMounts, initContainer, hf_token, envFromSecret,
+  #   env, affinity, nodeName, nodeSelectorTerms, tolerations, tolerationsPolicy,
+  #   enableTool, toolCallParser, chatTemplate, chatTemplateConfigMap,
+  #   vllmConfig (v0, enablePrefixCaching, enableChunkedPrefill, maxModelLen,
+  #   dtype, tensorParallelSize, maxNumSeqs, gpuMemoryUtilization,
+  #   runner, convert, prometheusMultiprocDir, extraArgs), kvEventsConfig.
+  modelSpec:
+    # -- The name of the model (used for resource names and the `model:` pod label)
+    name: "model"
+    # -- Whether to deploy the model (default true if not set)
+    enabled: false
+    # -- The repository of the model server image
+    repository: "vllm/vllm-openai"
+    # -- The image tag
+    tag: "latest"
+    # -- The model to serve (HF repo id or local/s3 path)
+    modelURL: ""
+    # -- Number of replicas
+    replicaCount: 1
+    # -- CPU request
+    requestCPU: 8
+    # -- Memory request
+    requestMemory: "16Gi"
+    # -- GPU request
+    requestGPU: 1 # @schema type:[integer, number, string]
+    # -- vLLM KV-cache event publishing for the llm-d EPP precise prefix-cache
+    # router. When enabled, vLLM publishes KV-block events over a per-pod ZMQ
+    # socket (KV_EVENTS_ENDPOINT=tcp://*:<port>) and a --kv-events-config arg
+    # with topic "kv@$(POD_IP):$(POD_PORT)@<servedModelName>". The EPP salts its
+    # prefix-cache hash chain with that topic model segment, so the EPP
+    # token-producer modelName is auto-derived from servedModelName to match it.
+    kvEventsConfig:
+      # -- Enable KV-cache event publishing
+      enabled: true
+      # -- Per-pod ZMQ socket port each router replica dials
+      port: 5556
+
+  # -- Container port
+  containerPort: 8000
+  # -- Service port
+  servicePort: 80
+
+  # -- deployment strategy
+  strategy: {}
+
+  # -- Readiness probe configuration
+  startupProbe:
+    # -- Number of seconds after the container has started before startup probe is initiated
+    initialDelaySeconds: 15
+    # -- How often (in seconds) to perform the startup probe
+    periodSeconds: 10
+    # -- Number of times after which if a probe fails in a row, Kubernetes considers that the overall check has failed: the container is not ready
+    failureThreshold:
+      60
+      # -- Configuration of the Kubelet http request on the server
+    httpGet:
+      # -- Path to access on the HTTP server
+      path: /health
+      # -- Name or number of the port to access on the container, on which the server is listening
+      port: 8000  # @schema type:[integer, string]
+
+  # -- Liveness probe configuration
+  livenessProbe:
+    # -- Number of seconds after the container has started before liveness probe is initiated
+    initialDelaySeconds: 15
+    # -- Number of times after which if a probe fails in a row, Kubernetes considers that the overall check has failed: the container is not alive
+    failureThreshold: 3
+    # -- How often (in seconds) to perform the liveness probe
+    periodSeconds: 10
+    # -- Configuration of the Kubelet http request on the server
+    httpGet:
+      # -- Path to access on the HTTP server
+      path: /health
+      # -- Name or number of the port to access on the container, on which the server is listening
+      port: 8000  # @schema type:[integer, string]
+
+  # -- Readiness probe configuration
+  readinessProbe:
+    # -- Number of seconds after the container has started before readiness probe is initiated
+    initialDelaySeconds: 15
+    # -- Number of times after which if a probe fails in a row, Kubernetes considers that the overall check has failed: the container is not alive
+    failureThreshold: 3
+    # -- How often (in seconds) to perform the readiness probe
+    periodSeconds: 5
+    # -- Configuration of the Kubelet http request on the server
+    httpGet:
+      # -- Path to access on the HTTP server
+      path: /health
+      # -- Name or number of the port to access on the container, on which the server is listening
+      port: 8000  # @schema type:[integer, string]
+
+  # -- Tolerations configuration (when there are taints on nodes)
+  # Example:
+  # tolerations:
+  #   - key: "node-role.kubernetes.io/control-plane"
+  #     operator: "Exists"
+  #     effect: "NoSchedule"
+  tolerations: []
+
+  # -- RuntimeClassName configuration, set to "nvidia" if the model requires GPU
+  runtimeClassName: "nvidia"
+
+  # -- SchedulerName configuration
+  schedulerName: ""
+
+  # -- image pull policy for the model deployment
+  imagePullPolicy: "Always" # @schema enum:[Always,IfNotPresent,Never]
+
+  # -- Pod-level security context configuration. https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#podsecuritycontext-v1-core
+  securityContext: {}
+    # -- Run as a non-root user ID
+    # runAsUser: 1000
+    # -- Run with a non-root group ID
+    # runAsGroup: 1000
+    # -- Run as non-root
+    # runAsNonRoot: true
+    # -- Set the seccomp profile
+    # seccompProfile:
+    #   type: RuntimeDefault
+    # -- Drop all capabilities
+    # capabilities:
+    #   drop:
+    #   - ALL
+    # -- Set the file system group ID for all containers
+    # fsGroup: 1000
+
+  # -- Container-level security context configuration. https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.32/#securitycontext-v1-core
+  containerSecurityContext:
+    # -- Run as non-root
+    runAsNonRoot: false
+    # -- Don't allow privilege escalation
+    # allowPrivilegeEscalation: false
+    # -- Drop all capabilities
+    # capabilities:
+    #   drop:
+    #   - ALL
+    # -- Read-only root filesystem
+    # readOnlyRootFilesystem: true
+
+  # -- ServiceMonitor configuration to collect serving engine metrics
+  serviceMonitor:
+    # -- Specifies whether to create a ServiceMonitor resource for collecting Prometheus metrics
+    enabled: false
+
+    # -- Additional labels
+    additionalLabels: {}
+
+    # -- Interval to scrape metrics
+    interval: 30s
+
+    # -- Timeout if metrics can't be retrieved in given time interval
+    scrapeTimeout: 25s
+
+    # -- Let prometheus add an exported_ prefix to conflicting labels
+    honorLabels: false
+
+    # -- Metric relabel configs to apply to samples before ingestion. [Metric Relabeling](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#metric_relabel_configs)
+    metricRelabelings: []
+    # - action: replace
+    #   regex: (.*)
+    #   replacement: $1
+    #   sourceLabels:
+    #   - exported_namespace
+    #   targetLabel: namespace
+
+    # -- Relabel configs to apply to samples before ingestion. [Relabeling](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#relabel_config)
+    relabelings: []
+    # - sourceLabels: [__meta_kubernetes_pod_node_name]
+    #   separator: ;
+    #   regex: ^(.*)$
+    #   targetLabel: nodename
+    #   replacement: $1
+    #   action: replace
+
+# -- llm-d EPP (EndpointPicker) router configuration.
+# Ported from the upstream llm-d-router-standalone chart
+# (github.com/llm-d/llm-d-router). One Helm release deploys one model's EPP
+# router; deploy the chart once per model (each in its own namespace) to get
+# prefix-cache-aware routing per model. `router.modelServers.matchLabels`
+# selects that model's serving pods. `matchLabels` is REQUIRED when
+# `router.inferencePool.create` is true.
+router:
+  enabled: true
+  extraServicePorts:
+  - name: http
+    port: 8081
+    protocol: TCP
+    targetPort: 8081
+  clusterDomain: cluster.local
+  epp:
+    replicas: 1
+    image:
+      registry: ghcr.io/llm-d
+      repository: llm-d-router-endpoint-picker-dev
+      tag: main
+      pullPolicy: Always
+    extProcPort: 9002
+    parsers: []
+    metricsDataSource:
+      scheme: http
+      path: /metrics
+      insecureSkipVerify: true
+    env: []
+    # The built-in precise-prefix-cache routing config rendered into the EPP
+    # ConfigMap. Override with pluginsCustomConfig to supply your own.
+    pluginsConfigFile: precise-prefix-cache-routing-plugins.yaml
+    pluginsCustomConfig: {}
+    extraContainerPorts: []
+    resources:
+      requests:
+        cpu: '8'
+        memory: 8Gi
+      limits:
+        memory: 16Gi
+    affinity: {}
+    tolerations: []
+  proxy:
+    enabled: true
+    proxyType: envoy
+    mode: sidecar
+    replicas: 2
+    failOpen: true
+    resources:
+      requests:
+        cpu: '4'
+        memory: 8Gi
+      limits:
+        memory: 16Gi
+    presets:
+      envoy:
+        configMap:
+          name: envoy
+          data:
+            envoy.yaml: |
+              admin:
+                address:
+                  socket_address:
+                    address: 127.0.0.1
+                    port_value: 19000
+                access_log:
+                  - name: envoy.access_loggers.file
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.access_loggers.file.v3.FileAccessLog
+                      path: /dev/null
+              static_resources:
+                listeners:
+                  - name: envoy-proxy-ready-0.0.0.0-19001
+                    address:
+                      socket_address:
+                        address: 0.0.0.0
+                        port_value: 19001
+                    filter_chains:
+                      - filters:
+                          - name: envoy.filters.network.http_connection_manager
+                            typed_config:
+                              "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                              stat_prefix: envoy-ready-http
+                              route_config:
+                                name: local_route
+                                virtual_hosts:
+                                  - name: prometheus_stats
+                                    domains: ["*"]
+                                    routes:
+                                      - match:
+                                          prefix: "/stats/prometheus"
+                                        route:
+                                          cluster: "prometheus_stats"
+                              http_filters:
+                                - name: envoy.filters.http.health_check
+                                  typed_config:
+                                    "@type": type.googleapis.com/envoy.extensions.filters.http.health_check.v3.HealthCheck
+                                    pass_through_mode: false
+                                    headers:
+                                      - name: ":path"
+                                        string_match:
+                                          exact: "/ready"
+                                - name: envoy.filters.http.router
+                                  typed_config:
+                                    "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+                  - name: vllm
+                    address:
+                      socket_address:
+                        address: 0.0.0.0
+                        port_value: 8081
+                    per_connection_buffer_limit_bytes: 32768
+                    access_log:
+                      - name: envoy.access_loggers.file
+                        filter:
+                          response_flag_filter:
+                            flags: ["NR"]
+                        typed_config:
+                          "@type": type.googleapis.com/envoy.extensions.access_loggers.file.v3.FileAccessLog
+                          path: /dev/stdout
+                          log_format:
+                            text_format_source:
+                              inline_string: "{\"start_time\":\"%START_TIME%\",\"method\":\"%REQ(:METHOD)%\",...}\n"
+                    filter_chains:
+                      - name: vllm
+                        filters:
+                          - name: envoy.filters.network.http_connection_manager
+                            typed_config:
+                              "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                              stat_prefix: http-8081
+                              route_config:
+                                name: vllm
+                                virtual_hosts:
+                                  - name: vllm-default
+                                    domains: ["*"]
+                                    routes:
+                                      - match:
+                                          prefix: "/"
+                                        route:
+                                          cluster: original_destination_cluster
+                                          timeout: 86400s
+                                          idle_timeout: 86400s
+                                          upgrade_configs:
+                                            - upgrade_type: websocket
+                                        typed_per_filter_config:
+                                          envoy.filters.http.ext_proc:
+                                            "@type": type.googleapis.com/envoy.config.route.v3.FilterConfig
+                                            config: {}
+                              http_filters:
+                                - name: envoy.filters.http.ext_proc
+                                  typed_config:
+                                    "@type": type.googleapis.com/envoy.extensions.filters.http.ext_proc.v3.ExternalProcessor
+                                    failure_mode_allow: {{ include "llm-d-router.proxy.failOpen" . }}
+                                    grpc_service:
+                                      envoy_grpc:
+                                        cluster_name: ext_proc
+                                        authority: localhost:9002
+                                      timeout: 10s
+                                    processing_mode:
+                                      request_header_mode: SEND
+                                      response_header_mode: SEND
+                                      request_body_mode: FULL_DUPLEX_STREAMED
+                                      response_body_mode: FULL_DUPLEX_STREAMED
+                                      request_trailer_mode: SEND
+                                      response_trailer_mode: SEND
+                                    message_timeout: 1000s
+                                - name: envoy.filters.http.router
+                                  typed_config:
+                                    "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+                                    suppress_envoy_headers: true
+                              http2_protocol_options:
+                                max_concurrent_streams: 100
+                                initial_stream_window_size: 65536
+                                initial_connection_window_size: 1048576
+                              use_remote_address: true
+                              normalize_path: true
+                              merge_slashes: true
+                              server_header_transformation: PASS_THROUGH
+                              common_http_protocol_options:
+                                headers_with_underscores_action: REJECT_REQUEST
+                              path_with_escaped_slashes_action: UNESCAPE_AND_REDIRECT
+                              access_log:
+                                - name: envoy.access_loggers.file
+                                  typed_config:
+                                    "@type": type.googleapis.com/envoy.extensions.access_loggers.file.v3.FileAccessLog
+                                    path: /dev/stdout
+                                    log_format:
+                                      text_format_source:
+                                        inline_string: "{\"start_time\":\"%START_TIME%\",\"method\":\"%REQ(:METHOD)%\",...}\n"
+                clusters:
+                  - name: prometheus_stats
+                    type: STATIC
+                    connect_timeout: 0.250s
+                    load_assignment:
+                      cluster_name: prometheus_stats
+                      endpoints:
+                        - lb_endpoints:
+                            - endpoint:
+                                address:
+                                  socket_address:
+                                    address: 127.0.0.1
+                                    port_value: 19000
+                  - name: original_destination_cluster
+                    type: ORIGINAL_DST
+                    connect_timeout: 1000s
+                    lb_policy: CLUSTER_PROVIDED
+                    circuit_breakers:
+                      thresholds:
+                        - max_connections: 40000
+                          max_pending_requests: 40000
+                          max_requests: 40000
+                    original_dst_lb_config:
+                      use_http_header: true
+                      http_header_name: x-gateway-destination-endpoint
+                  - name: ext_proc
+                    type: {{ include "llm-d-router.proxy.extProcClusterType" . }}
+                    connect_timeout: 86400s
+                    lb_policy: LEAST_REQUEST
+                    circuit_breakers:
+                      thresholds:
+                        - max_connections: 40000
+                          max_pending_requests: 40000
+                          max_requests: 40000
+                          max_retries: 1024
+                    health_checks:
+                      - timeout: 2s
+                        interval: 10s
+                        unhealthy_threshold: 3
+                        healthy_threshold: 2
+                        reuse_connection: true
+                        grpc_health_check:
+                          service_name: "envoy.service.ext_proc.v3.ExternalProcessor"
+                        tls_options:
+                          alpn_protocols: ["h2"]
+                    transport_socket:
+                      name: "envoy.transport_sockets.tls"
+                      typed_config:
+                        "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+                        common_tls_context:
+                          validation_context:
+                    typed_extension_protocol_options:
+                      envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+                        "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+                        explicit_http_config:
+                          http2_protocol_options:
+                            initial_stream_window_size: 65536
+                            initial_connection_window_size: 1048576
+                    load_assignment:
+                      cluster_name: ext_proc
+                      endpoints:
+                        - locality:
+                            region: ext_proc/e2e/0
+                          lb_endpoints:
+                            - endpoint:
+                                address:
+                                  socket_address:
+                                    address: {{ include "llm-d-router.proxy.extProcHost" . }}
+                                    port_value: 9002
+                              load_balancing_weight: 1
+        name: envoy-proxy
+        image: docker.io/envoyproxy/envoy:distroless-v1.33.2
+        command: envoy
+        args:
+        - --service-node
+        - envoy-proxy
+        - --log-level
+        - warn
+        - --cpuset-threads
+        - --drain-strategy
+        - immediate
+        - --drain-time-s
+        - '60'
+        - -c
+        - /etc/envoy/envoy.yaml
+        env:
+        - name: NS_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        ports:
+        - containerPort: 8081
+          name: http-8081
+        - containerPort: 19001
+          name: metrics-19001
+        readinessProbe:
+          failureThreshold: 1
+          httpGet:
+            path: /ready
+            port: 19001
+            scheme: HTTP
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 1
+        volumeMounts:
+        - name: config
+          mountPath: /etc/envoy
+          readOnly: true
+        volumes:
+        - name: config
+          configMap:
+            name: envoy
+            items:
+            - key: envoy.yaml
+              path: envoy.yaml
+      agentgateway:
+        configMap:
+          name: agentgateway
+        name: agentgateway-proxy
+        image: cr.agentgateway.dev/agentgateway:latest-dev
+        args:
+        - -f
+        - /config/config.yaml
+        ports:
+        - containerPort: 8081
+          name: http
+        - containerPort: 15020
+          name: metrics-15020
+        - containerPort: 15021
+          name: readiness-15021
+        readinessProbe:
+          failureThreshold: 1
+          httpGet:
+            path: /healthz/ready
+            port: 15021
+            scheme: HTTP
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 1
+        startupProbe:
+          failureThreshold: 60
+          httpGet:
+            path: /healthz/ready
+            port: 15021
+            scheme: HTTP
+          periodSeconds: 1
+          successThreshold: 1
+          timeoutSeconds: 2
+  tokenizer:
+    enabled: false
+    modelName: ''
+    # -- Tokenizer (vllm-render) image. This sidecar only tokenizes prompts and
+    # runs on the (CPU-only) EPP pod, so it MUST be a CPU vLLM build — do NOT
+    # point it at the GPU model-server image, or it crashes on a non-GPU node
+    # with "Failed to infer device type".
+    image:
+      registry: docker.io
+      repository: vllm/vllm-openai-cpu
+      tag: v0.19.1
+      pullPolicy: IfNotPresent
+    port: 8000
+    command: []
+    # -- Full override of the render container args. When set, replaces the
+    # default `<modelName> --port=<port>` entirely (extraArgs is then ignored).
+    args: []
+    # -- Extra vLLM render args appended after the default
+    # `<modelName> --port=<port>` (only used when `args` is empty).
+    extraArgs: []
+      # - --load-format
+      # - runai_streamer
+    env:
+    - name: HF_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: llm-d-hf-token
+          key: HF_TOKEN
+          # Don't block pod start when the HF token secret is absent
+          # (e.g. public models or S3-loaded weights).
+          optional: true
+    - name: RUNAI_STREAMER_S3_USE_VIRTUAL_ADDRESSING
+      value: "0"
+    - name: AWS_EC2_METADATA_DISABLED
+      value: "true"
+    resources:
+      requests:
+        cpu: '4'
+        memory: 8Gi
+    volumeMounts: []
+    readinessProbe:
+      httpGet:
+        path: /health
+        port: render-http
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 60
+  monitoring:
+    interval: 10s
+    provider:
+      name: ''
+      gmp:
+        autopilot: false
+    prometheus:
+      enabled: false
+      auth:
+        enabled: true
+        secretName: inference-gateway-sa-metrics-reader-secret
+      extraLabels: {}
+  # -- Tunables for the built-in "precise-prefix-cache-routing-plugins.yaml"
+  # EPP config. Select that config by setting:
+  #   router.epp.pluginsConfigFile: precise-prefix-cache-routing-plugins.yaml
+  # modelName is taken from router.tokenizer.modelName.
+  precisePrefixCache:
+    # -- Fallback KV-block token processor block size. Normally auto-derived
+    # from the engine's vLLM `--block-size` arg; this is used only when that
+    # arg is absent. Keep in sync with vLLM --block-size if you set it.
+    blockSize: 64
+    # -- Per-pod ZMQ socket port the producer dials for kv@ events
+    # (must match the engine's kvEventsConfig.port)
+    socketPort: 5556
+  # -- Ingress for the EPP router service. Routes external traffic to the EPP
+  # Service (<release>-epp), whose "http" port fronts the Envoy proxy sidecar.
+  ingress:
+    # -- Enable an Ingress for the router
+    enabled: false
+    # -- IngressClass to use
+    className: ""
+    # -- Additional annotations for the Ingress
+    annotations: {}
+    # -- EPP Service port to route to (the Envoy "http" listener)
+    servicePort: 8081
+    # -- Hostnames and paths
+    hosts:
+      - host: llm-d-router.local
+        paths:
+          - path: /
+            pathType: Prefix
+    # -- TLS configuration
+    tls: []
+    #  - secretName: llm-d-router-tls
+    #    hosts:
+    #      - llm-d-router.local
+  inferencePool:
+    create: true
+    failureMode: FailOpen
+  inferenceObjectives: []
+  modelServers:
+    type: vllm
+    protocol: http
+    targetPorts:
+    - number: 8000
+  latencyPredictor:
+    enabled: false
+    trainingServer:
+      image:
+        registry: ghcr.io/llm-d
+        repository: llm-d-latency-predictor-training-server-dev
+        tag: latest
+        pullPolicy: Always
+      port: 8000
+      resources:
+        requests:
+          cpu: 2000m
+          memory: 4Gi
+        limits:
+          cpu: 4000m
+          memory: 8Gi
+      livenessProbe:
+        httpGet:
+          path: /healthz
+          port: 8000
+        initialDelaySeconds: 30
+        periodSeconds: 20
+      readinessProbe:
+        httpGet:
+          path: /readyz
+          port: 8000
+        initialDelaySeconds: 45
+        periodSeconds: 10
+      volumeSize: 20Gi
+      config:
+        LATENCY_RETRAINING_INTERVAL_SEC: '10'
+        LATENCY_MIN_SAMPLES_FOR_RETRAIN: '100'
+        LATENCY_TTFT_MODEL_PATH: /models/ttft.joblib
+        LATENCY_TPOT_MODEL_PATH: /models/tpot.joblib
+        LATENCY_TTFT_SCALER_PATH: /models/ttft_scaler.joblib
+        LATENCY_TPOT_SCALER_PATH: /models/tpot_scaler.joblib
+        LATENCY_MODEL_TYPE: xgboost
+        LATENCY_MAX_TRAINING_DATA_SIZE_PER_BUCKET: '500'
+        LATENCY_OBJECTIVE_TYPE: mean
+    predictionServers:
+      count: 1
+      startPort: 8001
+      image:
+        registry: ghcr.io/llm-d
+        repository: llm-d-latency-predictor-prediction-server-dev
+        tag: latest
+        pullPolicy: Always
+      resources:
+        requests:
+          cpu: 8000m
+          memory: 4Gi
+        limits:
+          cpu: 28000m
+          memory: 8Gi
+      livenessProbe:
+        httpGet:
+          path: /healthz
+        initialDelaySeconds: 15
+        periodSeconds: 15
+        timeoutSeconds: 5
+        failureThreshold: 5
+      readinessProbe:
+        httpGet:
+          path: /readyz
+        initialDelaySeconds: 10
+        periodSeconds: 10
+        timeoutSeconds: 5
+        failureThreshold: 30
+      volumeSize: 10Gi
+      config:
+        LATENCY_MODEL_TYPE: xgboost
+        PREDICT_HOST: 0.0.0.0
+        LOCAL_TTFT_MODEL_PATH: /server_models/ttft.joblib
+        LOCAL_TPOT_MODEL_PATH: /server_models/tpot.joblib
+        LOCAL_TTFT_SCALER_PATH: /server_models/ttft_scaler.joblib
+        LOCAL_TPOT_SCALER_PATH: /server_models/tpot_scaler.joblib
+        UVICORN_WORKERS: '28'
+        OMP_NUM_THREADS: '1'
+        MODEL_SYNC_INTERVAL_SEC: '30'
+        LATENCY_OBJECTIVE_TYPE: mean
+    eppEnv:
+      LATENCY_MAX_SAMPLE_SIZE: '10000'
+      LATENCY_MAX_CONCURRENT_DISPATCHES: '36'
+      LATENCY_COALESCE_WINDOW_MS: '1'
+provider:
+  name: none
+  istio:
+    destinationRule:
+      host: ''
+      trafficPolicy: {}
+httpRoute:
+  create: false
+  inferenceGatewayName: inference-gateway
+  inferenceGatewayNamespace: ''
+  requestTimeout: 300s
+
+# -- S3 registry credentials for loading model weights (e.g. with vLLM's
+# runai_streamer load format). When enabled, the secret is injected via
+# `envFrom` into the vLLM model-server container and the EPP tokenizer
+# (vllm-render) sidecar, which both read weights/tokenizer from s3://.
+s3Registry:
+  # -- Enable S3 registry credential injection
+  enabled: false
+  # -- Whether the chart creates the Secret from `data` below. Set false to
+  # reference a pre-existing secret via `secretName`.
+  create: true
+  # -- Name of the secret. Defaults to "<release>-s3-registry" when created.
+  secretName: ""
+  # -- Key/value pairs stored in the created secret (only used when create=true).
+  # Loaded into the containers as environment variables.
+  data: {}
+    # AWS_ACCESS_KEY_ID: ""
+    # AWS_SECRET_ACCESS_KEY: ""
+    # AWS_ENDPOINT_URL: ""
+
