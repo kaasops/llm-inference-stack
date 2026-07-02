@@ -1,0 +1,303 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "title": "EPP — Prefix Cache Routing & Hits",
+  "uid": "epp-prefix-cache",
+  "tags": ["llm-d", "epp", "prefix-cache"],
+  "timezone": "",
+  "schemaVersion": 39,
+  "version": 1,
+  "time": { "from": "now-6h", "to": "now" },
+  "refresh": "30s",
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "label": "Data source",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {},
+        "hide": 0
+      },
+      {
+        "name": "namespace",
+        "label": "Namespace",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "${datasource}" },
+        "query": "label_values(inference_extension_scheduler_e2e_duration_seconds_count, namespace)",
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "current": { "text": "All", "value": "$__all" }
+      },
+      {
+        "name": "pod",
+        "label": "EPP pod",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "${datasource}" },
+        "query": "label_values(inference_extension_scheduler_e2e_duration_seconds_count{namespace=~\"$namespace\"}, pod)",
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "current": { "text": "All", "value": "$__all" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "row",
+      "title": "Prefix cache — hits & routing quality",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "collapsed": false
+    },
+    {
+      "type": "stat",
+      "title": "Matched blocks per lookup",
+      "description": "Avg KV-blocks the precise prefix indexer found per routing lookup (kvcache_index_lookup_hits_total / kvcache_index_lookup_requests_total). Higher = routing is landing on pods that already hold the prompt prefix.",
+      "gridPos": { "h": 7, "w": 6, "x": 0, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 2,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0.5 },
+              { "color": "green", "value": 1 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "sum(rate(kvcache_index_lookup_hits_total{namespace=~\"$namespace\", pod=~\"$pod\"}[$__rate_interval]))\n/\nclamp_min(sum(rate(kvcache_index_lookup_requests_total{namespace=~\"$namespace\", pod=~\"$pod\"}[$__rate_interval])), 1)"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Prefix index lookups vs hits (per second)",
+      "description": "Rate of routing lookups against the precise prefix indexer and how many produced a cache hit. A hit means the EPP steered the request toward a pod with the cached prefix.",
+      "gridPos": { "h": 7, "w": 12, "x": 6, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "fillOpacity": 10, "lineWidth": 2 } } },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "lastNotNull"] } },
+      "targets": [
+        {
+          "refId": "A",
+          "legendFormat": "lookups/s",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "sum(rate(kvcache_index_lookup_requests_total{namespace=~\"$namespace\", pod=~\"$pod\"}[$__rate_interval]))"
+        },
+        {
+          "refId": "B",
+          "legendFormat": "hits/s",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "sum(rate(kvcache_index_lookup_hits_total{namespace=~\"$namespace\", pod=~\"$pod\"}[$__rate_interval]))"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "EPP prefix hit ratio (p50/p90)",
+      "description": "inference_extension_prefix_indexer_hit_ratio — fraction of the prompt prefix matched in cache on each lookup (0..1). Populated by the built-in prefix-cache scorer; may be empty when only the precise producer is active.",
+      "gridPos": { "h": 7, "w": 6, "x": 18, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0.3 },
+              { "color": "green", "value": 0.6 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "legendFormat": "p50",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "histogram_quantile(0.5, sum(rate(inference_extension_prefix_indexer_hit_ratio_bucket{namespace=~\"$namespace\", pod=~\"$pod\"}[$__rate_interval])) by (le))"
+        },
+        {
+          "refId": "B",
+          "legendFormat": "p90",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "histogram_quantile(0.9, sum(rate(inference_extension_prefix_indexer_hit_ratio_bucket{namespace=~\"$namespace\", pod=~\"$pod\"}[$__rate_interval])) by (le))"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Prefix index admissions vs evictions (per second)",
+      "description": "Churn in the precise prefix indexer: KV-blocks admitted (learned from kv@ events) vs evicted. Sustained high eviction relative to admission means the working set exceeds the index/LRU capacity.",
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "ops", "custom": { "fillOpacity": 10, "lineWidth": 2 } } },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "lastNotNull"] } },
+      "targets": [
+        {
+          "refId": "A",
+          "legendFormat": "admissions/s",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "sum(rate(kvcache_index_admissions_total{namespace=~\"$namespace\", pod=~\"$pod\"}[$__rate_interval]))"
+        },
+        {
+          "refId": "B",
+          "legendFormat": "evictions/s",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "sum(rate(kvcache_index_evictions_total{namespace=~\"$namespace\", pod=~\"$pod\"}[$__rate_interval]))"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Prefix indexer lookup latency (p50/p95)",
+      "description": "kvcache_index_lookup_latency_seconds — time to score endpoints against the prefix index. This is on the request routing hot path.",
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "fillOpacity": 10, "lineWidth": 2 } } },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["lastNotNull"] } },
+      "targets": [
+        {
+          "refId": "A",
+          "legendFormat": "p50",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "histogram_quantile(0.5, sum(rate(kvcache_index_lookup_latency_seconds_bucket{namespace=~\"$namespace\", pod=~\"$pod\"}[$__rate_interval])) by (le))"
+        },
+        {
+          "refId": "B",
+          "legendFormat": "p95",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "histogram_quantile(0.95, sum(rate(kvcache_index_lookup_latency_seconds_bucket{namespace=~\"$namespace\", pod=~\"$pod\"}[$__rate_interval])) by (le))"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Scheduler & scorer plugins",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 15 },
+      "collapsed": false
+    },
+    {
+      "type": "timeseries",
+      "title": "Plugin latency p95 by plugin (scorers/producers)",
+      "description": "inference_extension_plugin_duration_seconds — per-plugin execution time in the scheduling cycle. Watch the prefix-cache producer/scorer here.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "fillOpacity": 5, "lineWidth": 2 } } },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"] } },
+      "targets": [
+        {
+          "refId": "A",
+          "legendFormat": "{{plugin_name}} ({{extension_point}})",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "histogram_quantile(0.95, sum(rate(inference_extension_plugin_duration_seconds_bucket{namespace=~\"$namespace\", pod=~\"$pod\"}[$__rate_interval])) by (le, plugin_name, extension_point))"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Scheduler end-to-end latency (p50/p95/p99)",
+      "description": "inference_extension_scheduler_e2e_duration_seconds — full endpoint-picking latency per request across all plugins.",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "fillOpacity": 10, "lineWidth": 2 } } },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "calcs": ["lastNotNull"] } },
+      "targets": [
+        {
+          "refId": "A",
+          "legendFormat": "p50",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "histogram_quantile(0.5, sum(rate(inference_extension_scheduler_e2e_duration_seconds_bucket{namespace=~\"$namespace\", pod=~\"$pod\"}[$__rate_interval])) by (le))"
+        },
+        {
+          "refId": "B",
+          "legendFormat": "p95",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "histogram_quantile(0.95, sum(rate(inference_extension_scheduler_e2e_duration_seconds_bucket{namespace=~\"$namespace\", pod=~\"$pod\"}[$__rate_interval])) by (le))"
+        },
+        {
+          "refId": "C",
+          "legendFormat": "p99",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "histogram_quantile(0.99, sum(rate(inference_extension_scheduler_e2e_duration_seconds_bucket{namespace=~\"$namespace\", pod=~\"$pod\"}[$__rate_interval])) by (le))"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Inference pool health",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 24 },
+      "collapsed": false
+    },
+    {
+      "type": "timeseries",
+      "title": "Avg KV-cache utilization",
+      "description": "inference_pool_average_kv_cache_utilization — mean vLLM KV-cache usage across pods the EPP routes to.",
+      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 25 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "custom": { "fillOpacity": 10, "lineWidth": 2 } } },
+      "targets": [
+        {
+          "refId": "A",
+          "legendFormat": "kv-cache util",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "avg(inference_pool_average_kv_cache_utilization{namespace=~\"$namespace\"})"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Avg queue size",
+      "description": "inference_pool_average_queue_size — mean waiting-request queue depth across pool pods.",
+      "gridPos": { "h": 7, "w": 8, "x": 8, "y": 25 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "none", "custom": { "fillOpacity": 10, "lineWidth": 2 } } },
+      "targets": [
+        {
+          "refId": "A",
+          "legendFormat": "queue size",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "avg(inference_pool_average_queue_size{namespace=~\"$namespace\"})"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Ready pods in pool",
+      "description": "inference_pool_ready_pods — number of backends currently eligible for routing.",
+      "gridPos": { "h": 7, "w": 8, "x": 16, "y": 25 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "fieldConfig": { "defaults": { "unit": "none", "decimals": 0, "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 1 } ] } } },
+      "options": { "colorMode": "value", "graphMode": "area", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "max(inference_pool_ready_pods{namespace=~\"$namespace\"})"
+        }
+      ]
+    }
+  ]
+}

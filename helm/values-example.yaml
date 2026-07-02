@@ -8,6 +8,8 @@
 
 servingEngineSpec:
   runtimeClassName: ""
+  serviceMonitor:
+    enabled: true
   modelSpec:
     name: "qwen36-27b-fp8"
     enabled: true
@@ -70,6 +72,8 @@ router:
       - --load-format
       - runai_streamer
   monitoring:
+    serviceMonitor:
+      enabled: true
     prometheus:
       auth:
         enabled: false

@@ -1,0 +1,33 @@
+{{- if and (.Values.router.enabled | default true) .Values.router.monitoring.serviceMonitor.enabled -}}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: "{{ include "llm-d-router.name" . }}-servicemonitor"
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "llm-d-router.labels" . | nindent 4 }}
+    {{- with .Values.router.monitoring.serviceMonitor.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  endpoints:
+    - port: http-metrics
+      path: /metrics
+      honorLabels: {{ .Values.router.monitoring.serviceMonitor.honorLabels }}
+      interval: {{ .Values.router.monitoring.serviceMonitor.interval }}
+      scrapeTimeout: {{ .Values.router.monitoring.serviceMonitor.scrapeTimeout }}
+      {{- with .Values.router.monitoring.serviceMonitor.metricRelabelings }}
+      metricRelabelings:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.router.monitoring.serviceMonitor.relabelings }}
+      relabelings:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+  selector:
+    matchLabels:
+      {{- include "llm-d-router.labels" . | nindent 6 }}
+{{- end }}
