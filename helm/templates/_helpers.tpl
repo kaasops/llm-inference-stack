@@ -191,36 +191,6 @@ limits:
 {{- end }}
 
 {{/*
-  Define labels for cache server and its service
-*/}}
-{{- define "chart.cacheserverLabels" -}}
-{{-   with .Values.cacheserverSpec.labels -}}
-{{      toYaml . }}
-{{-   end }}
-{{- end }}
-
-{{/*
-  Define helper function to convert labels to a comma separated list
-*/}}
-{{- define "labels.toCommaSeparatedList" -}}
-{{- $labels := . -}}
-{{- $result := "" -}}
-{{- range $key, $value := $labels -}}
-  {{- if $result }},{{ end -}}
-  {{ $key }}={{ $value }}
-  {{- $result = "," -}}
-{{- end -}}
-{{- end -}}
-
-
-{{/*
-  Define helper function to format remote cache url
-*/}}
-{{- define "cacheserver.formatRemoteUrl" -}}
-lm://{{ .service_name }}:{{ .port }}
-{{- end -}}
-
-{{/*
   Name of the S3 registry credentials Secret. Defaults to "<release>-s3-registry"
   when the chart creates it; can be overridden to reference an existing secret
   via .Values.s3Registry.secretName.
@@ -260,18 +230,6 @@ app.kubernetes.io/managed-by: helm
 {{- define "chart.engineStandardLabels" -}}
 app.kubernetes.io/name: {{ .modelName }}
 {{- include "chart.engineCommonLabels" . | nindent 0 }}
-{{- end -}}
-
-{{/*
-  Define standard Kubernetes labels for cache server
-  Usage: include "chart.cacheserverStandardLabels" (dict "releaseName" .Release.Name "chartName" .Chart.Name)
-*/}}
-{{- define "chart.cacheserverStandardLabels" -}}
-app.kubernetes.io/name: cache-server
-app.kubernetes.io/instance: {{ .releaseName }}
-app.kubernetes.io/component: cache-server
-app.kubernetes.io/part-of: {{ .chartName }}
-app.kubernetes.io/managed-by: helm
 {{- end -}}
 
 {{/* ===================================================================
