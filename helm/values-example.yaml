@@ -38,6 +38,33 @@ servingEngineSpec:
         - /health,/metrics,/v1/models"
         - --load-format
         - runai_streamer
+        - --chat-template
+        - /templates/chat-template-fakezeta.jinja
+    # Pull the chat template from S3 into a shared emptyDir before vLLM starts.
+    # The init container reuses the S3 creds from envFromSecret (s3-registry-creds).
+    envFromSecret:
+      name: s3-registry-creds
+    extraVolumes:
+      - name: chat-template
+        emptyDir: {}
+    extraVolumeMounts:
+      - name: chat-template
+        mountPath: /templates
+    initContainer:
+      name: fetch-chat-template
+      image: amazon/aws-cli:2.22.35
+      command: ["/bin/sh", "-c"]
+      args:
+        - |
+          set -e
+          aws configure set default.region us-east-1
+          aws configure set default.s3.addressing_style path
+          aws --endpoint-url "$AWS_ENDPOINT_URL" s3 cp \
+            s3://ml-inference-shared-models/Qwen3.6-27B-FP8/chat-template-fakezeta.jinja \
+            /templates/chat-template-fakezeta.jinja
+      extraVolumeMounts:
+        - name: chat-template
+          mountPath: /templates
     tolerations:
       - key: nvidia.com/gpu
         operator: Exists
@@ -88,7 +115,8 @@ router:
 s3Registry:
   enabled: true
   create: true
-  secretName: ""
+  # Fixed name so the initContainer envFromSecret can reference it directly.
+  secretName: s3-registry-creds
   data:
     AWS_ACCESS_KEY_ID: "<your-access-key-id>"
     AWS_SECRET_ACCESS_KEY: "<your-secret-access-key>"
