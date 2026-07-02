@@ -605,6 +605,39 @@ router:
         enabled: true
         secretName: inference-gateway-sa-metrics-reader-secret
       extraLabels: {}
+    # -- Standalone ServiceMonitor for the EPP router's Prometheus metrics
+    # (the EPP Service "http-metrics" port). Use this when the Prometheus
+    # Operator is installed and you want a plain, unauthenticated scrape;
+    # for the auth-gated / GMP flows use router.monitoring.prometheus instead.
+    serviceMonitor:
+      # -- Whether to create a ServiceMonitor resource for the EPP router
+      enabled: false
+      # -- Additional labels
+      additionalLabels: {}
+      # -- Interval to scrape metrics
+      interval: 30s
+      # -- Timeout if metrics can't be retrieved in given time interval
+      scrapeTimeout: 25s
+      # -- Let prometheus add an exported_ prefix to conflicting labels
+      honorLabels: false
+      # -- Metric relabel configs to apply to samples before ingestion
+      metricRelabelings: []
+      # -- Relabel configs to apply to samples before ingestion
+      relabelings: []
+    # -- Grafana dashboard for EPP prefix-cache routing & hits, shipped as a
+    # ConfigMap that the Grafana sidecar auto-imports (see label below).
+    dashboard:
+      # -- Whether to create the Grafana dashboard ConfigMap
+      enabled: false
+      # -- Label the Grafana sidecar watches to discover dashboards
+      label: grafana_dashboard
+      # -- Value for the discovery label
+      labelValue: "1"
+      # -- Annotation to place the dashboard in a Grafana folder, e.g.
+      # {k8s-sidecar-target-directory: "llm-d"}
+      folderAnnotation: {}
+      # -- Additional labels on the dashboard ConfigMap
+      additionalLabels: {}
   # -- Tunables for the built-in "precise-prefix-cache-routing-plugins.yaml"
   # EPP config. Select that config by setting:
   #   router.epp.pluginsConfigFile: precise-prefix-cache-routing-plugins.yaml

@@ -1,0 +1,21 @@
+{{- if and (.Values.router.enabled | default true) .Values.router.monitoring.dashboard.enabled -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "{{ include "llm-d-router.name" . }}-prefix-cache-dashboard"
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "llm-d-router.labels" . | nindent 4 }}
+    {{- /* Label the Grafana sidecar watches for to auto-import dashboards. */}}
+    {{ .Values.router.monitoring.dashboard.label }}: {{ .Values.router.monitoring.dashboard.labelValue | quote }}
+    {{- with .Values.router.monitoring.dashboard.additionalLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.router.monitoring.dashboard.folderAnnotation }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+data:
+  epp-prefix-cache.json: |
+    {{- .Files.Get "dashboards/epp-prefix-cache.json" | nindent 4 }}
+{{- end }}
