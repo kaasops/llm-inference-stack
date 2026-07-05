@@ -234,6 +234,9 @@ router:
       path: /metrics
       insecureSkipVerify: true
     env: []
+    # Init containers for the EPP pod, rendered as-is. Provide a list of
+    # standard Kubernetes container specs.
+    initContainers: []
     # The built-in precise-prefix-cache routing config rendered into the EPP
     # ConfigMap. Override with pluginsCustomConfig to supply your own.
     pluginsConfigFile: precise-prefix-cache-routing-plugins.yaml

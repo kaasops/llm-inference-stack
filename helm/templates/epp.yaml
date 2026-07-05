@@ -140,6 +140,10 @@ spec:
       serviceAccountName: {{ include "llm-d-router.name" . }}
       # Conservatively, this timeout should mirror the longest grace period of the pods within the pool
       terminationGracePeriodSeconds: 130
+      {{- with .Values.router.epp.initContainers }}
+      initContainers:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
       {{- if $proxySidecar }}
         - name: {{ $proxy.name }}
