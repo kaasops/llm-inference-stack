@@ -38,6 +38,13 @@ servingEngineSpec:
         - /health,/metrics,/v1/models"
         - --load-format
         - runai_streamer
+        - --max-model-len
+        - "120000"
+        - --enforce-eager
+        - --max-num-seqs
+        - "16"
+        - --max-num-batched-tokens
+        - "8192"
         - --chat-template
         - /templates/chat-template-fakezeta.jinja
     # Pull the chat template from S3 into a shared emptyDir before vLLM starts.
@@ -78,9 +85,13 @@ servingEngineSpec:
         value: "0"
       - name: AWS_EC2_METADATA_DISABLED
         value: "true"
+      - name: PYTORCH_CUDA_ALLOC_CONF
+        value: "expandable_segments:True"
 
 
 router:
+  proxy:
+    mode: service
   # modelServers.matchLabels is auto-derived from the serving engine
   # (model: <modelSpec.name>) when omitted. Set it explicitly to override.
   tokenizer:
@@ -105,7 +116,13 @@ router:
     volumeMounts:
       - name: chat-template
         mountPath: /templates
+    image:
+      registry: docker.io
+      repository: vllm/vllm-openai-cpu
+      tag: v0.19.1
+      pullPolicy: IfNotPresent
   epp:
+    replicas: 2
     # Pull the chat template from S3 into a shared emptyDir before the tokenizer
     # (vllm-render sidecar) starts. The init container reuses the S3 creds from
     # the s3-registry-creds secret.
