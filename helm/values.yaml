@@ -39,23 +39,25 @@ servingEngineSpec:
   #   runner, convert, prometheusMultiprocDir, extraArgs), kvEventsConfig.
   modelSpec:
     # -- The name of the model (used for resource names and the `model:` pod label)
-    name: "model"
+    name: "qwen3-4b"
     # -- Whether to deploy the model (default true if not set)
-    enabled: false
+    enabled: true
     # -- The repository of the model server image
     repository: "vllm/vllm-openai"
     # -- The image tag
     tag: "latest"
     # -- The model to serve (HF repo id or local/s3 path)
-    modelURL: ""
+    modelURL: "Qwen/Qwen3.5-4B"
     # -- Number of replicas
     replicaCount: 1
     # -- CPU request
     requestCPU: 8
     # -- Memory request
     requestMemory: "16Gi"
-    # -- GPU request
-    requestGPU: 1 # @schema type:[integer, number, string]
+    # -- GPU request (0 = run on CPU only, omits the nvidia.com/gpu resource)
+    requestGPU: 0 # @schema type:[integer, number, string]
+    # -- Empty runtimeClassName so the pod is not pinned to the "nvidia" runtime (CPU nodes)
+    runtimeClassName: ""
     # -- vLLM KV-cache event publishing for the llm-d EPP precise prefix-cache
     # router. When enabled, vLLM publishes KV-block events over a per-pod ZMQ
     # socket (KV_EVENTS_ENDPOINT=tcp://*:<port>) and a --kv-events-config arg
