@@ -560,7 +560,7 @@ router:
     image:
       registry: docker.io
       repository: vllm/vllm-openai-cpu
-      tag: v0.19.1
+      tag: v0.21.0
       pullPolicy: IfNotPresent
     port: 8000
     command: []
