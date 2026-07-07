@@ -39,8 +39,8 @@ jobs:
   publish:
     name: Package and push chart
     runs-on: ubuntu-latest
-    # Only publish on chart tag pushes.
-    if: startsWith(github.ref, 'refs/tags/chart-v')
+    # Only publish on release tag pushes.
+    if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/tags/pre-v')
     permissions:
       contents: read
       packages: write
