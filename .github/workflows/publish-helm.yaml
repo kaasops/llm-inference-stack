@@ -61,10 +61,21 @@ jobs:
       - name: Update dependencies
         run: helm dependency update ${{ env.CHART_DIR }}
 
+      - name: Derive chart version from tag
+        id: version
+        run: |
+          # Strip a leading "v" or "pre-v" from the tag to get a SemVer version.
+          version="${GITHUB_REF_NAME#pre-}"
+          version="${version#v}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
       - name: Package chart
         id: package
         run: |
-          helm package ${{ env.CHART_DIR }} --destination ./dist
+          helm package ${{ env.CHART_DIR }} \
+            --version "${{ steps.version.outputs.version }}" \
+            --app-version "${{ steps.version.outputs.version }}" \
+            --destination ./dist
           echo "package=$(ls ./dist/*.tgz)" >> "$GITHUB_OUTPUT"
 
       - name: Push chart to GHCR
