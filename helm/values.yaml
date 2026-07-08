@@ -224,6 +224,12 @@ router:
   clusterDomain: cluster.local
   epp:
     replicas: 1
+    # -- Extra annotations for the EPP Deployment metadata. With HA leader
+    # election (replicas > 1) only the leader replica is Ready and the standby
+    # stays NotReady by design, so the Deployment never reaches full
+    # availability; add argocd.argoproj.io/ignore-healthcheck: "true" here to
+    # stop Argo CD from reporting it Degraded.
+    annotations: {}
     image:
       registry: ghcr.io/llm-d
       repository: llm-d-router-endpoint-picker
